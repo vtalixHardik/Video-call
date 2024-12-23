@@ -16,7 +16,7 @@ const Room = () => {
 
   useEffect(() => {
     // Check if the stream is being received correctly
-    console.log("Received stream:", myStream);
+    // console.log("Received stream:", myStream);
   }, [myStream]);
 
   return (
@@ -46,6 +46,7 @@ const Room = () => {
           <h1>others stream</h1>
           <div className="flex flex-col justify-center items-center gap-3">
             {Object.values(peers).map((peer, index) => (
+              
               <ReactPlayer
                 key={index}
                 url={peer.peerStream}

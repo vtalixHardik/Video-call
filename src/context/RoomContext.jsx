@@ -15,7 +15,6 @@ export const RoomProvider = ({ children }) => {
   const [ws, setWs] = useState(null);
 
   const [ID, setID] = useState(""); // Store the user ID
-  const [me, setMe] = useState(null);
   const [participants, setParticipants] = useState([]);
 
   const [myStream, setMyStream] = useState(null); // to store clients own media stream
@@ -78,25 +77,10 @@ export const RoomProvider = ({ children }) => {
 
     getMediaStream();
 
-    return () => {
-      socket.disconnect();
-      console.log("WebSocket connection closed");
-    };
-  }, []);
+    const handleUserJoined = ({peerID}) => {
+      const call = ID.call(peerID, myStream);
+      console.log("call: ", call);
 
-  // useEffect(() => {
-  //   const peer = new Peer(ID);
-  //   setMe(peer);
-  // }, [ID]);
-
-  // now we need to make other users see ouur stream
-  // we need to call every peer who are in our room
-  // and we will send our stream to them and they will send thier stream to us
-  useEffect(() => {
-    if (!me || !myStream) return;
-
-    const handleUserJoined = (peerID) => {
-      const call = me.call(peerID, myStream);
       call.on("stream", (peerStream) => {
         dispatch(addPeerAction({ ID: peerID, stream: peerStream }));
       });
@@ -111,18 +95,34 @@ export const RoomProvider = ({ children }) => {
 
     // Register event listeners
     ws.on("user-joined", handleUserJoined);
-    me.on("call", handleIncomingCall);
+    ID.on("call", handleIncomingCall);
 
-    // Cleanup event listeners
+
     return () => {
+      socket.disconnect();
       ws.off("user-joined", handleUserJoined);
-      me.off("call", handleIncomingCall);
+      ID.off("call", handleIncomingCall);
+      console.log("WebSocket connection closed");
     };
-  }, [me, myStream, ws, dispatch]);
+  }, [ myStream, ws, dispatch, ID]);
+
+  // useEffect(() => {
+  //   const peer = new Peer(ID);
+  //   setMe(peer);
+  // }, [ID]);
+
+  // now we need to make other users see ouur stream
+  // we need to call every peer who are in our room
+  // and we will send our stream to them and they will send thier stream to us
+  useEffect(() => {
+    if (!ID || !myStream) return;
+
+   
+  }, [ myStream, ws, dispatch, ID]);
 
   return (
     <RoomContext.Provider
-      value={{ ws, ID, setID, participants, me, myStream, peers }}
+      value={{ ws, ID, setID, participants, myStream, peers }}
     >
       {children}
     </RoomContext.Provider>
