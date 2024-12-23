@@ -1,7 +1,9 @@
-import { createContext, useCallback, useEffect, useState } from "react";
+import { createContext, useReducer, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import socketIOClient from "socket.io-client";
-import Peer from "peerjs";
+// import Peer from "peerjs";
+import { peerReducer } from "./PeerReducer";
+import { addPeerAction } from "./PeerActions";
 
 const ip = 16;
 const WS = `http://192.168.1.${ip}:8000`;
@@ -11,12 +13,16 @@ export const RoomContext = createContext(null);
 export const RoomProvider = ({ children }) => {
   const navigateTo = useNavigate();
   const [ws, setWs] = useState(null);
+
   const [ID, setID] = useState(""); // Store the user ID
   const [me, setMe] = useState(null);
   const [participants, setParticipants] = useState([]);
 
   const [myStream, setMyStream] = useState(null); // to store clients own media stream
   // we will use navigatore media devices which is a Browser API
+
+  // storing, adding and deleting participants, each participant will have an ID and stream
+  const [peers, dispatch] = useReducer(peerReducer, {});
 
   const enterRoom = ({ roomID }) => {
     if (!roomID) {
@@ -84,13 +90,40 @@ export const RoomProvider = ({ children }) => {
   // }, [ID]);
 
   // now we need to make other users see ouur stream
+  // we need to call every peer who are in our room
+  // and we will send our stream to them and they will send thier stream to us
   useEffect(() => {
-    if(!ID) return;
-    if(!myStream) return;
-  }, [ID, myStream]);
+    if (!me || !myStream) return;
+
+    const handleUserJoined = (peerID) => {
+      const call = me.call(peerID, myStream);
+      call.on("stream", (peerStream) => {
+        dispatch(addPeerAction({ ID: peerID, stream: peerStream }));
+      });
+    };
+
+    const handleIncomingCall = (call) => {
+      call.answer(myStream);
+      call.on("stream", (peerStream) => {
+        dispatch(addPeerAction({ ID: call.peer, stream: peerStream }));
+      });
+    };
+
+    // Register event listeners
+    ws.on("user-joined", handleUserJoined);
+    me.on("call", handleIncomingCall);
+
+    // Cleanup event listeners
+    return () => {
+      ws.off("user-joined", handleUserJoined);
+      me.off("call", handleIncomingCall);
+    };
+  }, [me, myStream, ws, dispatch]);
 
   return (
-    <RoomContext.Provider value={{ ws, ID, setID, participants, me, myStream }}>
+    <RoomContext.Provider
+      value={{ ws, ID, setID, participants, me, myStream, peers }}
+    >
       {children}
     </RoomContext.Provider>
   );
